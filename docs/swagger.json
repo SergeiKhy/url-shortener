@@ -1,0 +1,343 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "URL Shortener API",
+    "description": "A high-performance URL shortener service with click tracking, rate limiting, and API key authentication",
+    "version": "1.0.0",
+    "contact": {
+      "name": "API Support"
+    }
+  },
+  "host": "localhost:8080",
+  "basePath": "/",
+  "schemes": ["http", "https"],
+  "consumes": ["application/json"],
+  "produces": ["application/json"],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Check if the service is running",
+        "tags": ["health"],
+        "produces": ["application/json"],
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "schema": {
+              "$ref": "#/definitions/HealthResponse"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/links": {
+      "post": {
+        "summary": "Create a short link",
+        "description": "Create a new shortened URL with optional custom code and expiration",
+        "tags": ["links"],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "security": [{"ApiKeyAuth": []}],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "request",
+            "description": "Link creation request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateLinkRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Link created successfully",
+            "schema": {
+              "$ref": "#/definitions/CreateLinkResponse"
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized (if API key is required)"
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/links/{code}": {
+      "delete": {
+        "summary": "Delete a short link",
+        "description": "Delete a shortened URL by short code",
+        "tags": ["links"],
+        "produces": ["application/json"],
+        "security": [{"ApiKeyAuth": []}],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "description": "Short code",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Link deleted successfully",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "Link deleted successfully"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Link not found",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/links/{code}/stats": {
+      "get": {
+        "summary": "Get click statistics",
+        "description": "Get total and unique click counts for a shortened URL",
+        "tags": ["links"],
+        "produces": ["application/json"],
+        "security": [{"ApiKeyAuth": []}],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "description": "Short code",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Click statistics",
+            "schema": {
+              "$ref": "#/definitions/ClickStats"
+            }
+          },
+          "404": {
+            "description": "Link not found",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/links/{code}/stats/daily": {
+      "get": {
+        "summary": "Get daily click statistics",
+        "description": "Get daily click counts for a shortened URL",
+        "tags": ["links"],
+        "produces": ["application/json"],
+        "security": [{"ApiKeyAuth": []}],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "description": "Short code",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "description": "Number of days to retrieve (1-90)",
+            "type": "integer",
+            "default": 7,
+            "minimum": 1,
+            "maximum": 90
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daily click statistics",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/DailyClickStats"
+              }
+            }
+          },
+          "404": {
+            "description": "Link not found",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/{code}": {
+      "get": {
+        "summary": "Redirect to original URL",
+        "description": "Redirect to the original URL by short code",
+        "tags": ["redirect"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "description": "Short code",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "307": {
+            "description": "Redirect to original URL"
+          },
+          "400": {
+            "description": "Missing code",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "404": {
+            "description": "Link not found or expired",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      }
+    }
+  },
+  "securityDefinitions": {
+    "ApiKeyAuth": {
+      "type": "apiKey",
+      "in": "header",
+      "name": "X-API-Key",
+      "description": "API key for authentication. Can also be provided via 'api_key' query parameter or 'Authorization: Bearer <token>' header"
+    }
+  },
+  "definitions": {
+    "HealthResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "example": "ok"
+        },
+        "service": {
+          "type": "string",
+          "example": "url-shortener"
+        }
+      }
+    },
+    "CreateLinkRequest": {
+      "type": "object",
+      "required": ["url"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "example": "https://example.com/very/long/url",
+          "description": "The original URL to shorten"
+        },
+        "expires_in": {
+          "type": "integer",
+          "description": "Expiration time in minutes (optional)",
+          "example": 60
+        },
+        "custom_code": {
+          "type": "string",
+          "description": "Custom short code (4-12 alphanumeric characters, optional)",
+          "example": "my-custom-code",
+          "minLength": 4,
+          "maxLength": 12,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      }
+    },
+    "CreateLinkResponse": {
+      "type": "object",
+      "properties": {
+        "short_code": {
+          "type": "string",
+          "example": "abc123xyz"
+        },
+        "short_url": {
+          "type": "string",
+          "example": "http://localhost:8080/abc123xyz"
+        },
+        "original_url": {
+          "type": "string",
+          "example": "https://example.com/very/long/url"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "ClickStats": {
+      "type": "object",
+      "properties": {
+        "short_code": {
+          "type": "string",
+          "example": "abc123xyz"
+        },
+        "total_clicks": {
+          "type": "integer",
+          "example": 150
+        },
+        "unique_clicks": {
+          "type": "integer",
+          "example": 75
+        }
+      }
+    },
+    "DailyClickStats": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date",
+          "example": "2024-01-15"
+        },
+        "clicks": {
+          "type": "integer",
+          "example": 25
+        }
+      }
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "example": "invalid_url"
+        },
+        "message": {
+          "type": "string",
+          "example": "Invalid URL format"
+        }
+      }
+    }
+  }
+}

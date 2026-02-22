@@ -1,0 +1,65 @@
+# Binaries для программ и тестов
+/bin
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Зависимости
+/vendor/
+
+# Файлы среды разработки
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Файлы окружения (секреты)
+.env
+.env.local
+.env.*.local
+
+# Логи
+*.log
+logs/
+
+# Базы данных (локальные)
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker
+docker-compose.override.yml
+
+# Тестовое покрытие
+coverage.out
+coverage.html
+
+# Временные файлы
+tmp/
+temp/
+*.tmp
+
+# Go workspace
+go.work
+go.work.sum
+
+# Миграции (если генерируются)
+migrations_generated/
+
+# Swagger генерируемые файлы (если есть)
+docs/generated/
+
+# TLS сертификаты (локальные)
+*.pem
+*.key
+*.crt
+
+# Секретные файлы
+secrets/
+*.secret
