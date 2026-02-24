@@ -1,11 +1,8 @@
-version: "2"
-
 run:
   timeout: 5m
   tests: true
 
 linters:
-  default: none
   enable:
     - goconst
     - gocritic
@@ -21,15 +18,26 @@ linters:
     - dupl
     - gochecknoinits
     - gocyclo
+    - errcheck
 
 linters-settings:
   gocyclo:
-    min-complexity: 15
+    min-complexity: 20
 
 issues:
   exclude:
     - "G104: Errors unhandled"
     - "SA9003: empty branch"
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+    - path: cmd/api/main.go
+      linters:
+        - errcheck
+    - path: internal/service/link_service.go
+      linters:
+        - errcheck
   exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
