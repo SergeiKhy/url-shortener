@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/SergeiKhy/url-shortener/internal/models"
 	"github.com/SergeiKhy/url-shortener/internal/service"
 	"github.com/SergeiKhy/url-shortener/internal/service/mocks"
@@ -17,7 +19,8 @@ import (
 func setupTestService() (service.LinkService, *mocks.MockLinkRepository, *mocks.MockCacheRepository) {
 	linkRepo := mocks.NewMockLinkRepository()
 	cacheRepo := mocks.NewMockCacheRepository()
-	linkService := service.NewLinkService(linkRepo, cacheRepo)
+	logger, _ := zap.NewDevelopment()
+	linkService := service.NewLinkService(linkRepo, cacheRepo, logger)
 	return linkService, linkRepo, cacheRepo
 }
 

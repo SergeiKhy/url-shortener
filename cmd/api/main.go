@@ -50,8 +50,8 @@ func main() {
 	cacheRepo := repository.NewCacheRepository(redis)
 	clickRepo := repository.NewClickRepository(db)
 
-	// Инициализация сервиса
-	linkService := service.NewLinkService(linkRepo, cacheRepo)
+	// Инициализация сервисов
+	linkService := service.NewLinkService(linkRepo, cacheRepo, logger)
 
 	// Инициализация процессора кликов (Worker Pool)
 	clickProcessor := service.NewClickProcessor(clickRepo, linkRepo, logger)

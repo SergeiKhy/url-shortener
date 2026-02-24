@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/SergeiKhy/url-shortener/internal/models"
 	"github.com/SergeiKhy/url-shortener/internal/repository"
 )
@@ -46,13 +48,15 @@ type LinkService interface {
 type linkService struct {
 	linkRepo  repository.LinkRepository
 	cacheRepo repository.CacheRepository
+	logger    *zap.Logger
 }
 
 // NewLinkService создаёт новый экземпляр сервиса
-func NewLinkService(linkRepo repository.LinkRepository, cacheRepo repository.CacheRepository) LinkService {
+func NewLinkService(linkRepo repository.LinkRepository, cacheRepo repository.CacheRepository, logger *zap.Logger) LinkService {
 	return &linkService{
 		linkRepo:  linkRepo,
 		cacheRepo: cacheRepo,
+		logger:    logger,
 	}
 }
 
@@ -117,9 +121,9 @@ func (s *linkService) CreateLink(ctx context.Context, input *models.CreateLinkIn
 	if expiresAt != nil {
 		ttl = time.Until(*expiresAt)
 	}
+
 	if err := s.cacheRepo.Set(ctx, link.ShortCode, link, ttl); err != nil {
-		// Логгируем ошибку, но не прерываем создание
-		// fmt.Printf("Failed to cache link: %v\n", err)
+		s.logger.Warn("Failed to cache link", zap.String("code", link.ShortCode), zap.Error(err))
 	}
 
 	return link, nil

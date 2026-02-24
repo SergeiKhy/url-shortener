@@ -1,0 +1,35 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - goconst
+    - gocritic
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+    - bodyclose
+    - dupl
+    - gochecknoinits
+    - gocyclo
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+
+issues:
+  exclude:
+    - G104: Errors unhandled
+    - SA9003: empty branch
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

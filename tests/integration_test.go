@@ -2,6 +2,7 @@ package tests
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,10 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"go.uber.org/zap"
 
 	"github.com/SergeiKhy/url-shortener/internal/config"
 	"github.com/SergeiKhy/url-shortener/internal/handler"
@@ -19,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	pgcontainer "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -41,16 +46,75 @@ type TestEnv struct {
 	redis          *repository.RedisDB
 }
 
+// runMigrations запускает миграции БД
+func runMigrations(pool *pgxpool.Pool) error {
+	ctx := context.Background()
+
+	// Создаём таблицу links
+	_, err := pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS links (
+			id SERIAL PRIMARY KEY,
+			short_code VARCHAR(12) UNIQUE NOT NULL,
+			original_url TEXT NOT NULL,
+			expires_at TIMESTAMP,
+			created_at TIMESTAMP DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create links table: %w", err)
+	}
+
+	// Создаём индексы
+	_, err = pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_short_code ON links(short_code)`)
+	if err != nil {
+		return fmt.Errorf("failed to create index on short_code: %w", err)
+	}
+
+	_, err = pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_expires_at ON links(expires_at)`)
+	if err != nil {
+		return fmt.Errorf("failed to create index on expires_at: %w", err)
+	}
+
+	// Создаём таблицу clicks
+	_, err = pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS clicks (
+			id SERIAL PRIMARY KEY,
+			link_id INTEGER REFERENCES links(id) ON DELETE CASCADE,
+			ip_address INET,
+			user_agent TEXT,
+			referer TEXT,
+			country VARCHAR(2),
+			clicked_at TIMESTAMP DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create clicks table: %w", err)
+	}
+
+	// Создаём индексы для clicks
+	_, err = pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_clicks_link_id ON clicks(link_id)`)
+	if err != nil {
+		return fmt.Errorf("failed to create index on link_id: %w", err)
+	}
+
+	_, err = pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at)`)
+	if err != nil {
+		return fmt.Errorf("failed to create index on clicked_at: %w", err)
+	}
+
+	return nil
+}
+
 // setupTestEnv создаёт тестовое окружение с PostgreSQL и Redis контейнерами
 func setupTestEnv(t *testing.T) *TestEnv {
 	ctx := t.Context()
 
 	// Запускаем контейнер PostgreSQL
-	dbContainer, err := postgres.Run(ctx,
+	dbContainer, err := pgcontainer.Run(ctx,
 		"postgres:15-alpine",
-		postgres.WithDatabase("shortener"),
-		postgres.WithUsername("user"),
-		postgres.WithPassword("password"),
+		pgcontainer.WithDatabase("shortener"),
+		pgcontainer.WithUsername("user"),
+		pgcontainer.WithPassword("password"),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
@@ -86,6 +150,10 @@ func setupTestEnv(t *testing.T) *TestEnv {
 	})
 	require.NoError(t, err)
 
+	// Запускаем миграции
+	err = runMigrations(db.Pool)
+	require.NoError(t, err)
+
 	// Создаём подключение к Redis
 	redisClient, err := repository.NewRedisClient(config.RedisConfig{
 		Host: redisHost,
@@ -98,8 +166,9 @@ func setupTestEnv(t *testing.T) *TestEnv {
 	cacheRepo := repository.NewCacheRepository(redisClient)
 	clickRepo := repository.NewClickRepository(db)
 
-	linkService := service.NewLinkService(linkRepo, cacheRepo)
-	clickProc := service.NewClickProcessor(clickRepo, linkRepo, nil) // nil logger для тестов
+	logger, _ := zap.NewDevelopment()
+	linkService := service.NewLinkService(linkRepo, cacheRepo, logger)
+	clickProc := service.NewClickProcessor(clickRepo, linkRepo, logger)
 	clickProc.Start()
 
 	// Настраиваем роутер с middleware
@@ -109,7 +178,7 @@ func setupTestEnv(t *testing.T) *TestEnv {
 		CleanupInterval:   time.Minute,
 	})
 
-	router := handler.NewRouter(linkService, clickProc, rateLimiter, nil, nil)
+	router := handler.NewRouter(linkService, clickProc, rateLimiter, nil, logger)
 
 	return &TestEnv{
 		router:         router,
