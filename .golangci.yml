@@ -28,8 +28,8 @@ linters-settings:
 
 issues:
   exclude:
-    - G104: Errors unhandled
-    - SA9003: empty branch
+    - "G104: Errors unhandled"
+    - "SA9003: empty branch"
   exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
